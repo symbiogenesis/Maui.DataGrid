@@ -35,10 +35,9 @@ internal sealed class DataGridRow : Grid
     private void CreateView()
     {
         UpdateBackgroundColor();
-        BackgroundColor = DataGrid.BorderColor;
-        ColumnSpacing = DataGrid.BorderThickness.HorizontalThickness / 2;
-        Padding = new Thickness(DataGrid.BorderThickness.HorizontalThickness / 2,
-            DataGrid.BorderThickness.VerticalThickness / 2);
+
+        ColumnSpacing = DataGrid.BorderThickness;
+        Margin = new Thickness(0, 0, 0, DataGrid.BorderThickness);
 
         foreach (var col in DataGrid.Columns)
         {
@@ -58,7 +57,6 @@ internal sealed class DataGridRow : Grid
             {
                 cell = new Label
                 {
-                    Padding = 0,
                     TextColor = _textColor,
                     BackgroundColor = _bgColor,
                     VerticalOptions = LayoutOptions.Fill,

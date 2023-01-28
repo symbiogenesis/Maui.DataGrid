@@ -321,11 +321,13 @@ public partial class DataGrid
             propertyChanged: (b, _, n) => ((DataGrid)b)._refreshView.IsRefreshing = (bool)n);
 
     public static readonly BindableProperty BorderThicknessProperty =
-        BindableProperty.Create(nameof(BorderThickness), typeof(Thickness), typeof(DataGrid), new Thickness(1),
+        BindableProperty.Create(nameof(BorderThickness), typeof(double), typeof(DataGrid), (double)2,
             propertyChanged: (b, _, n) =>
             {
-                ((DataGrid)b)._headerView.ColumnSpacing = ((Thickness)n).HorizontalThickness / 2;
-                ((DataGrid)b)._headerView.Padding = ((Thickness)n).HorizontalThickness / 2;
+                if (b is DataGrid self)
+                {
+                    self._headerView.ColumnSpacing = (double)n;
+                }
             });
 
     public static readonly BindableProperty HeaderBordersVisibleProperty =
@@ -570,9 +572,9 @@ public partial class DataGrid
     /// <summary>
     /// Border thickness for header &amp; each cell
     /// </summary>
-    public Thickness BorderThickness
+    public double BorderThickness
     {
-        get => (Thickness)GetValue(BorderThicknessProperty);
+        get => (double)GetValue(BorderThicknessProperty);
         set => SetValue(BorderThicknessProperty, value);
     }
 
@@ -701,10 +703,9 @@ public partial class DataGrid
             column.SortingIcon.Style = SortIconStyle ?? (Style)_headerView.Resources["SortIconStyle"];
             column.SortingIconContainer.HeightRequest = HeaderHeight * 0.35;
             column.SortingIconContainer.WidthRequest = HeaderHeight * 0.35;
-      
+
             var grid = new Grid
             {
-                ColumnSpacing = 0,
                 ColumnDefinitions = new()
                 {
                     new() { Width = new(1, GridUnitType.Star) },
@@ -731,12 +732,7 @@ public partial class DataGrid
             return grid;
         }
 
-        return new ContentView
-        {
-            HorizontalOptions = LayoutOptions.Fill,
-            VerticalOptions = LayoutOptions.Fill,
-            Content = column.HeaderLabel, Margin = 0, Padding = 0
-        };
+        return column.HeaderLabel;
     }
 
     private void InitHeaderView()
@@ -746,8 +742,8 @@ public partial class DataGrid
         _headerView.ColumnDefinitions.Clear();
         _sortingOrders.Clear();
 
-        _headerView.Padding = new(BorderThickness.Left, BorderThickness.Top, BorderThickness.Right, 0);
-        _headerView.ColumnSpacing = BorderThickness.HorizontalThickness / 2;
+        _headerView.ColumnSpacing = BorderThickness;
+        BackgroundColor = BorderColor;
 
         if (Columns != null)
         {
