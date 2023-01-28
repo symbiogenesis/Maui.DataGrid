@@ -701,8 +701,9 @@ public partial class DataGrid
         if (IsSortable && column.SortingEnabled)
         {
             column.SortingIcon.Style = SortIconStyle ?? (Style)_headerView.Resources["SortIconStyle"];
-            column.SortingIconContainer.HeightRequest = HeaderHeight * 0.35;
-            column.SortingIconContainer.WidthRequest = HeaderHeight * 0.35;
+            column.SortingIcon.Margin = new Thickness(0,0,3,0);
+            column.SortingIconContainer.HeightRequest = HeaderHeight * 0.3;
+            column.SortingIconContainer.WidthRequest = HeaderHeight * 0.3;
 
             var grid = new Grid
             {
