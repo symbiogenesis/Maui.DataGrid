@@ -56,7 +56,11 @@ internal sealed class DataGridRow : Grid
 
             if (col.CellTemplate != null)
             {
-                cell = new ContentView { Content = col.CellTemplate.CreateContent() as View };
+                cell = new ContentView
+                {
+                    Content = col.CellTemplate.CreateContent() as View
+                };
+
                 if (col.PropertyName != null)
                 {
                     cell.SetBinding(BindingContextProperty,
