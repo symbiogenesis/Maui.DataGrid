@@ -22,6 +22,7 @@
                 <CheckBox IsChecked="{Binding WonColumnVisible}" />
                 <Label Text="Won Column" TextColor="White" Margin="0,0,5,0" VerticalOptions="Center" />
             </HorizontalStackLayout>
+            <Button Text="Update Name" Command="{Binding UpdateNameCommand}" />
         </FlexLayout>
 
         <dg:DataGrid Grid.Row="1" ItemsSource="{Binding Teams}" SelectionEnabled="True" SelectedItem="{Binding SelectedTeam}"

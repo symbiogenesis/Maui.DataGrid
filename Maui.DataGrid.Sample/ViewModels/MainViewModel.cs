@@ -19,6 +19,7 @@ public class MainViewModel : INotifyPropertyChanged
     {
         Teams = DummyDataProvider.GetTeams();
         RefreshCommand = new Command(CmdRefresh);
+        UpdateNameCommand = new Command(OnUpdateName);
     }
 
     public List<Team> Teams
@@ -82,6 +83,7 @@ public class MainViewModel : INotifyPropertyChanged
     }
 
     public ICommand RefreshCommand { get; set; }
+    public ICommand UpdateNameCommand { get; set; }
 
     private async void CmdRefresh()
     {
@@ -89,6 +91,11 @@ public class MainViewModel : INotifyPropertyChanged
         // wait 3 secs for demo
         await Task.Delay(3000);
         IsRefreshing = false;
+    }
+
+    private async void OnUpdateName()
+    {
+        Teams.First().Name = "Test";
     }
 
     #region INotifyPropertyChanged implementation

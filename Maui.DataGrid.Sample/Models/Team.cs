@@ -1,8 +1,21 @@
 namespace Maui.DataGrid.Sample.Models;
 
-public class Team
+using System.Windows.Input;
+using System.ComponentModel;
+
+public class Team : INotifyPropertyChanged
 {
-    public string Name { get; set; }
+    private string _name;
+
+    public string Name
+    {
+        get => _name;
+        set
+        {
+            _name = value;
+            OnPropertyChanged(nameof(Name));
+        }
+    }
     public int Won { get; set; }
     public int Lost { get; set; }
     public double Percentage { get; set; }
@@ -13,6 +26,14 @@ public class Team
     public string Last10 { get; set; }
     public Streak Streak { get; set; }
     public string Logo { get; set; }
+
+    #region INotifyPropertyChanged implementation
+
+    public event PropertyChangedEventHandler PropertyChanged;
+
+    private void OnPropertyChanged(string property) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
+
+    #endregion INotifyPropertyChanged implementation
 }
 
 public class Streak : IComparable
