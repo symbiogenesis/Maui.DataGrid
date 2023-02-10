@@ -19,7 +19,15 @@ public class MainViewModel : INotifyPropertyChanged
 
     public MainViewModel()
     {
-        Teams = DummyDataProvider.GetTeams();
+        List<Team> teams = new();
+
+        for (var i = 0; i < 10000; i++)
+        {
+            var tempTeams = DummyDataProvider.GetTeams();
+            teams.AddRange(tempTeams);
+        }
+
+        Teams = teams;
         RefreshCommand = new Command(CmdRefresh);
     }
 
