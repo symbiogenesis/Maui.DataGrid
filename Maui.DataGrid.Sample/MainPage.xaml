@@ -62,6 +62,16 @@
                         </DataTemplate>
                     </dg:DataGridColumn.CellTemplate>
                 </dg:DataGridColumn>
+                <dg:DataGridColumn Title="Info" Width="0.75*">
+                    <dg:DataGridColumn.CellTemplate>
+                        <DataTemplate>
+                            <FlexLayout BackgroundColor="CornflowerBlue" AlignContent="Stretch" AlignItems="Center" JustifyContent="Center">
+                                <Path Data="{StaticResource InfoIcon}" Fill="White" HeightRequest="16" WidthRequest="16" Aspect="Uniform" />
+                                <Label Text="Info" FlexLayout.Shrink="1" VerticalTextAlignment="Center" />
+                            </FlexLayout>
+                        </DataTemplate>
+                    </dg:DataGridColumn.CellTemplate>
+                </dg:DataGridColumn>
             </dg:DataGrid.Columns>
             <dg:DataGrid.RowsBackgroundColorPalette>
                 <dg:PaletteCollection>
