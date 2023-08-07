@@ -18,6 +18,14 @@ public partial class DataGrid
 {
     #region Fields
 
+    private WeakNotifyCollectionChangedProxy? _notifyColumnsChangedProxy;
+    private WeakSelectionChangedProxy? _selectionChangedProxy;
+    private WeakRefreshingProxy? _refreshingProxy;
+
+    private NotifyCollectionChangedEventHandler? _notifyColumnsChangedHandler;
+    private EventHandler<SelectionChangedEventArgs>? _selectionChangedHandler;
+    private EventHandler? _refreshingHandler;
+
     private static readonly ColumnDefinitionCollection HeaderColumnDefinitions = new()
                 {
                     new() { Width = new(1, GridUnitType.Star) },
@@ -39,6 +47,13 @@ public partial class DataGrid
         InitializeComponent();
         _defaultHeaderStyle = (Style)Resources["DefaultHeaderStyle"];
         _defaultSortIconStyle = (Style)Resources["DefaultSortIconStyle"];
+    }
+
+    ~DataGrid()
+    {
+        _notifyColumnsChangedProxy?.Unsubscribe();
+        _selectionChangedProxy?.Unsubscribe();
+        _refreshingProxy?.Unsubscribe();
     }
 
     #endregion ctor
@@ -294,7 +309,7 @@ public partial class DataGrid
 
                 if (o != null)
                 {
-                    o.CollectionChanged -= self.OnColumnsChanged;
+                    self._notifyColumnsChangedProxy?.Unsubscribe();
 
                     foreach (var oldColumn in o)
                     {
@@ -304,7 +319,9 @@ public partial class DataGrid
 
                 if (n != null)
                 {
-                    n.CollectionChanged += self.OnColumnsChanged;
+                    self._notifyColumnsChangedHandler ??= self.OnColumnsChanged;
+                    self._notifyColumnsChangedProxy ??= new();
+                    self._notifyColumnsChangedProxy.Subscribe(n, self._notifyColumnsChangedHandler);
 
                     foreach (var newColumn in n)
                     {
@@ -328,7 +345,7 @@ public partial class DataGrid
                 //ObservableCollection Tracking
                 if (o is INotifyCollectionChanged oldCollection)
                 {
-                    oldCollection.CollectionChanged -= self.HandleItemsSourceCollectionChanged;
+                    self._notifyColumnsChangedProxy?.Unsubscribe();
                 }
 
                 if (n == null)
@@ -339,7 +356,9 @@ public partial class DataGrid
                 {
                     if (n is INotifyCollectionChanged newCollection)
                     {
-                        newCollection.CollectionChanged += self.HandleItemsSourceCollectionChanged;
+                        self._notifyColumnsChangedHandler ??= self.HandleItemsSourceCollectionChanged;
+                        self._notifyColumnsChangedProxy ??= new();
+                        self._notifyColumnsChangedProxy.Subscribe(newCollection, self._notifyColumnsChangedHandler);
                     }
 
                     var itemsSource = n.Cast<object>().ToList();
@@ -902,25 +921,29 @@ public partial class DataGrid
 
         if (Parent is null)
         {
-            _collectionView.SelectionChanged -= OnSelectionChanged;
+            _selectionChangedProxy?.Unsubscribe();
         }
         else if (SelectionEnabled)
         {
-            _collectionView.SelectionChanged += OnSelectionChanged;
+            _selectionChangedHandler ??= OnSelectionChanged;
+            _selectionChangedProxy ??= new();
+            _selectionChangedProxy.Subscribe(_collectionView, _selectionChangedHandler);
         }
 
         if (Parent is null)
         {
-            _refreshView.Refreshing -= OnRefreshing;
+            _refreshingProxy?.Unsubscribe();
         }
         else if (RefreshingEnabled)
         {
-            _refreshView.Refreshing += OnRefreshing;
+            _refreshingHandler ??= OnRefreshing;
+            _refreshingProxy ??= new();
+            _refreshingProxy.Subscribe(_refreshView, _refreshingHandler);
         }
 
         if (Parent is null)
         {
-            Columns.CollectionChanged -= OnColumnsChanged;
+            _notifyColumnsChangedProxy?.Unsubscribe();
 
             foreach (var column in Columns)
             {
@@ -929,7 +952,9 @@ public partial class DataGrid
         }
         else
         {
-            Columns.CollectionChanged += OnColumnsChanged;
+            _notifyColumnsChangedHandler ??= OnColumnsChanged;
+            _notifyColumnsChangedProxy ??= new();
+            _notifyColumnsChangedProxy.Subscribe(Columns, _notifyColumnsChangedHandler);
 
             foreach (var column in Columns)
             {
