@@ -231,7 +231,7 @@ public partial class DataGrid
             propertyChanged: (b, o, n) =>
             {
                 var self = (DataGrid)b;
-                if (o != n && self._headerView != null && !self.HeaderBordersVisible)
+                if (o != n && self._headerView != null)
                 {
                     foreach (var child in self._headerView.Children.OfType<View>())
                     {
@@ -245,18 +245,16 @@ public partial class DataGrid
 
     public static readonly BindableProperty BorderColorProperty =
         BindablePropertyExtensions.Create(Colors.Black,
-            propertyChanged: (b, _, n) =>
+            propertyChanged: (b, _, _) =>
             {
                 var self = (DataGrid)b;
+
                 if (self._headerView != null && self.HeaderBordersVisible)
                 {
-                    self._headerView.BackgroundColor = n;
+                    self.InitHeaderView();
                 }
 
-                if (self.Columns != null && self.ItemsSource != null)
-                {
-                    self.Reload();
-                }
+                self.Reload();
             });
 
     public static readonly BindableProperty ItemSizingStrategyProperty =
@@ -508,19 +506,25 @@ public partial class DataGrid
         BindablePropertyExtensions.Create(false, BindingMode.TwoWay);
 
     public static readonly BindableProperty BorderThicknessProperty =
-        BindablePropertyExtensions.Create(new Thickness(1),
+        BindablePropertyExtensions.Create(1d,
             propertyChanged: (b, o, n) =>
             {
-                if (o != n && b is DataGrid self && self.IsLoaded)
+                if (o != n && b is DataGrid self)
                 {
+                    self.InitHeaderView();
                     self.Reload();
                 }
             });
 
     public static readonly BindableProperty HeaderBordersVisibleProperty =
         BindablePropertyExtensions.Create(true,
-            propertyChanged: (b, _, n) => ((DataGrid)b)._headerView.BackgroundColor =
-                n ? ((DataGrid)b).BorderColor : ((DataGrid)b).HeaderBackground);
+            propertyChanged: (b, _, _) =>
+            {
+                if (b is DataGrid self)
+                {
+                    self.InitHeaderView();
+                }
+            });
 
     public static readonly BindableProperty SortedColumnIndexProperty =
         BindablePropertyExtensions.Create<SortData>(null, BindingMode.TwoWay,
@@ -841,11 +845,11 @@ public partial class DataGrid
     }
 
     /// <summary>
-    /// Border thickness for header &amp; each cell
+    /// Border thickness for cells
     /// </summary>
-    public Thickness BorderThickness
+    public double BorderThickness
     {
-        get => (Thickness)GetValue(BorderThicknessProperty);
+        get => (double)GetValue(BorderThicknessProperty);
         set => SetValue(BorderThicknessProperty, value);
     }
 
@@ -996,16 +1000,23 @@ public partial class DataGrid
 
     #region Header Creation Methods
 
-    private View GetHeaderViewForColumn(DataGridColumn column)
+    private Border GetHeaderCell(DataGridColumn column)
     {
+        var cellBorder = new Border
+        {
+            Stroke = BorderColor
+        };
+
         column.HeaderLabel.Style = column.HeaderLabelStyle ?? HeaderLabelStyle ?? _defaultHeaderStyle;
 
         if (!IsSortable || !column.SortingEnabled || !column.IsSortable(this))
         {
-            return new ContentView
+            cellBorder.Content = new ContentView
             {
                 Content = column.HeaderLabel
             };
+
+            return cellBorder;
         }
 
         var sortIconSize = HeaderHeight * 0.3;
@@ -1013,47 +1024,52 @@ public partial class DataGrid
         column.SortingIconContainer.WidthRequest = sortIconSize;
         column.SortingIcon.Style = SortIconStyle ?? _defaultSortIconStyle;
 
-        var grid = new Grid
+        var cellGrid = new Grid
         {
             ColumnSpacing = 0,
             Padding = new(0, 0, 4, 0),
             ColumnDefinitions = HeaderColumnDefinitions,
-            Children = { column.HeaderLabel, column.SortingIconContainer },
-            GestureRecognizers =
-                {
-                    new TapGestureRecognizer
-                    {
-                        Command = new Command(() =>
-                        {
-                            // This is to invert SortOrder when the user taps on a column.
-                            var order = column.SortingOrder == SortingOrder.Ascendant
-                                ? SortingOrder.Descendant
-                                : SortingOrder.Ascendant;
-
-                            var index = Columns.IndexOf(column);
-
-                            SortedColumnIndex = new(index, order);
-
-                            column.SortingOrder = order;
-                        }, () => column.SortingEnabled)
-                    }
-                }
+            Children = { column.HeaderLabel, column.SortingIconContainer }
         };
 
+        var sortRecognizer = new TapGestureRecognizer
+        {
+            Command = new Command(() =>
+            {
+                // This is to invert SortOrder when the user taps on a column.
+                var order = column.SortingOrder == SortingOrder.Ascendant
+                    ? SortingOrder.Descendant
+                    : SortingOrder.Ascendant;
+
+                var index = Columns.IndexOf(column);
+
+                SortedColumnIndex = new(index, order);
+
+                column.SortingOrder = order;
+            }, () => column.SortingEnabled)
+        };
+
+        cellBorder.GestureRecognizers.Add(sortRecognizer);
+
         Grid.SetColumn(column.SortingIconContainer, 1);
-        return grid;
+
+        cellBorder.Content = cellGrid;
+
+        return cellBorder;
     }
 
     private void InitHeaderView()
     {
+        if (_headerView == null)
+        {
+            return;
+        }
+
         SetColumnsBindingContext();
 
         _headerView.Children.Clear();
         _headerView.ColumnDefinitions.Clear();
         ResetSortingOrders();
-
-        _headerView.Padding = new(BorderThickness.Left, BorderThickness.Top, BorderThickness.Right, 0);
-        _headerView.ColumnSpacing = BorderThickness.HorizontalThickness;
 
         if (Columns == null)
         {
@@ -1075,7 +1091,9 @@ public partial class DataGrid
                 continue;
             }
 
-            col.HeaderView ??= GetHeaderViewForColumn(col);
+            col.HeaderView ??= GetHeaderCell(col);
+
+            col.HeaderView.StrokeThickness = HeaderBordersVisible ? BorderThickness / 2 : 0;
 
             col.HeaderView.SetBinding(BackgroundColorProperty, new Binding(nameof(HeaderBackground), source: this));
 

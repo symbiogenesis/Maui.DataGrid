@@ -15,6 +15,7 @@ public class MainViewModel : INotifyPropertyChanged
     private bool _wonColumnVisible = true;
     private bool _headerBordersVisible = true;
     private bool _paginationEnabled = true;
+    private double _borderThickness = 1;
     private ushort _teamColumnWidth = 70;
 
     public MainViewModel()
@@ -60,6 +61,16 @@ public class MainViewModel : INotifyPropertyChanged
         {
             _wonColumnVisible = value;
             OnPropertyChanged(nameof(WonColumnVisible));
+        }
+    }
+
+    public double BorderThickness
+    {
+        get => _borderThickness;
+        set
+        {
+            _borderThickness = value;
+            OnPropertyChanged(nameof(BorderThickness));
         }
     }
 

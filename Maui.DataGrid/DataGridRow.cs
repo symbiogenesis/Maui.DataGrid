@@ -51,7 +51,7 @@ internal sealed class DataGridRow : Grid
         ColumnDefinitions.Clear();
         Children.Clear();
 
-        SetStyling();
+        UpdateColors();
 
         for (var i = 0; i < DataGrid.Columns.Count; i++)
         {
@@ -71,29 +71,21 @@ internal sealed class DataGridRow : Grid
         }
     }
 
-    private void SetStyling()
+    private Border CreateCell(DataGridColumn col)
     {
-        UpdateColors();
+        var cellBorder = new Border
+        {
+            BackgroundColor = _bgColor,
+            Stroke = DataGrid.BorderColor,
+            StrokeThickness = DataGrid.BorderThickness / 2
+        };
 
-        // We are using the spacing between rows to generate visible borders, and thus the background color is the border color.
-        BackgroundColor = DataGrid.BorderColor;
-
-        var borderThickness = DataGrid.BorderThickness;
-
-        Padding = new(borderThickness.Left, borderThickness.Top, borderThickness.Right, 0);
-        ColumnSpacing = borderThickness.HorizontalThickness;
-        Margin = new Thickness(0, 0, 0, borderThickness.Bottom); // Row Spacing
-    }
-
-    private View CreateCell(DataGridColumn col)
-    {
         View cell;
 
         if (col.CellTemplate != null)
         {
             cell = new ContentView
             {
-                BackgroundColor = _bgColor,
                 Content = col.CellTemplate.CreateContent() as View
             };
 
@@ -123,7 +115,9 @@ internal sealed class DataGridRow : Grid
             }
         }
 
-        return cell;
+        cellBorder.Content = cell;
+
+        return cellBorder;
     }
 
     private void UpdateColors()
@@ -141,16 +135,13 @@ internal sealed class DataGridRow : Grid
                 : DataGrid.RowsBackgroundColorPalette.GetColor(rowIndex, BindingContext);
         _textColor = DataGrid.RowsTextColorPalette.GetColor(rowIndex, BindingContext);
 
-        foreach (var v in Children)
+        foreach (var border in Children.OfType<Border>())
         {
-            if (v is View view)
-            {
-                view.BackgroundColor = _bgColor;
+            border.BackgroundColor = _bgColor;
 
-                if (view is Label label)
-                {
-                    label.TextColor = _textColor;
-                }
+            if (border.Content is Label label)
+            {
+                label.TextColor = _textColor;
             }
         }
     }

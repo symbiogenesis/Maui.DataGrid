@@ -12,38 +12,45 @@
         <FlexLayout BackgroundColor="Black" Wrap="Wrap">
             <HorizontalStackLayout HeightRequest="50" Margin="0,0,15,0">
                 <CheckBox IsChecked="{Binding HeaderBordersVisible}" />
-                <Label Text="Header Borders Visible?" TextColor="White" Margin="0,0,5,0" VerticalOptions="Center" />
+                <Label Text="Header Borders Visible?" TextColor="White" Margin="0,0,5,0" FontSize="Small" VerticalOptions="Center" />
             </HorizontalStackLayout>
             <HorizontalStackLayout HeightRequest="50" Margin="0,0,15,0">
                 <CheckBox IsChecked="{Binding TeamColumnVisible}"  />
-                <Label Text="Team Column" TextColor="White" Margin="0,0,5,0" VerticalOptions="Center" />
+                <Label Text="Team Column" TextColor="White" Margin="0,0,5,0" FontSize="Small" VerticalOptions="Center" />
             </HorizontalStackLayout>
             <HorizontalStackLayout HeightRequest="50" Margin="0,0,15,0">
                 <CheckBox IsChecked="{Binding WonColumnVisible}" />
-                <Label Text="Won Column" TextColor="White" Margin="0,0,5,0" VerticalOptions="Center" />
+                <Label Text="Won Column" TextColor="White" Margin="0,0,5,0" FontSize="Small" VerticalOptions="Center" />
             </HorizontalStackLayout>
             <HorizontalStackLayout HeightRequest="50" Margin="0,0,15,0">
                 <CheckBox IsChecked="{Binding PaginationEnabled}" />
-                <Label Text="Pagination Enabled?" TextColor="White" Margin="0,0,5,0" VerticalOptions="Center" />
+                <Label Text="Pagination Enabled?" TextColor="White" Margin="0,0,5,0" FontSize="Small" VerticalOptions="Center" />
             </HorizontalStackLayout>
             <HorizontalStackLayout HeightRequest="50" Margin="0,0,15,0">
                 <Stepper Minimum="0" Maximum="100" Increment="10" Value="{Binding TeamColumnWidth}" />
-                <Label Text="Team Col Width" TextColor="White" Margin="0,0,5,0" VerticalOptions="Center" />
+                <Label Text="Team Col Width" TextColor="White" Margin="0,0,5,0" FontSize="Small" VerticalOptions="Center" />
+            </HorizontalStackLayout>
+            <HorizontalStackLayout HeightRequest="50" Margin="0,0,15,0">
+                <Stepper Minimum="0" Maximum="100" Increment="1" Value="{Binding BorderThickness}" />
+                <Label Text="Border Thickness" TextColor="White" Margin="0,0,5,0" FontSize="Small" VerticalOptions="Center" />
             </HorizontalStackLayout>
             <Button x:Name="_addColumnButton1" Text="Add Column" />
         </FlexLayout>
 
-        <dg:DataGrid Grid.Row="1" ItemsSource="{Binding Teams}" SelectionEnabled="True" SelectedItem="{Binding SelectedTeam}"
-                     RowHeight="70" HeaderHeight="50" BorderColor="{StaticResource GridBorderColor}"
-                     HeaderBackground="{StaticResource GridHeaderBgColor}" HeaderBordersVisible="{Binding HeaderBordersVisible}"
-                     PullToRefreshCommand="{Binding RefreshCommand}" IsRefreshing="{Binding IsRefreshing}" PaginationEnabled="{Binding PaginationEnabled}" PageSize="5"
-                     ActiveRowColor="{StaticResource ActiveRowColor}" FooterBackground="{StaticResource GridFooterBgColor}" x:Name="_dataGrid1">
+        <dg:DataGrid Grid.Row="1" ItemsSource="{Binding Teams}" SelectedItem="{Binding SelectedTeam}"
+                     BorderColor="{StaticResource GridBorderColor}" BackgroundColor="{StaticResource GridBgColor}"
+                     HeaderBordersVisible="{Binding HeaderBordersVisible}" BorderThickness="{Binding BorderThickness}"
+                     HeaderBackground="{StaticResource GridHeaderBgColor}" FooterBackground="{StaticResource GridFooterBgColor}"
+                     PullToRefreshCommand="{Binding RefreshCommand}" IsRefreshing="{Binding IsRefreshing}"
+                     PaginationEnabled="{Binding PaginationEnabled}" PageSize="5"
+                     ActiveRowColor="{StaticResource ActiveRowColor}"
+                     RowHeight="70" HeaderHeight="50" x:Name="_dataGrid1">
             <dg:DataGrid.Columns>
                 <dg:DataGridColumn Title="Logo" PropertyName="Logo" SortingEnabled="False">
                     <dg:DataGridColumn.CellTemplate>
                         <DataTemplate>
                             <Image Source="{Binding}" HorizontalOptions="Center" VerticalOptions="Center"
-                                   Aspect="AspectFit" HeightRequest="60" />
+                                   Aspect="AspectFit" HeightRequest="60" WidthRequest="60" />
                         </DataTemplate>
                     </dg:DataGridColumn.CellTemplate>
                 </dg:DataGridColumn>
