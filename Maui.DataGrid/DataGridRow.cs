@@ -71,21 +71,15 @@ internal sealed class DataGridRow : Grid
         }
     }
 
-    private Border CreateCell(DataGridColumn col)
+    private Grid CreateCell(DataGridColumn col)
     {
-        var cellBorder = new Border
-        {
-            BackgroundColor = _bgColor,
-            Stroke = DataGrid.BorderColor,
-            StrokeThickness = DataGrid.BorderThickness / 2
-        };
-
         View cell;
 
         if (col.CellTemplate != null)
         {
             cell = new ContentView
             {
+                BackgroundColor = _bgColor,
                 Content = col.CellTemplate.CreateContent() as View
             };
 
@@ -115,9 +109,47 @@ internal sealed class DataGridRow : Grid
             }
         }
 
-        cellBorder.Content = cell;
+        return WrapCellWithBorder(cell);
+    }
 
-        return cellBorder;
+    private Grid WrapCellWithBorder(View cellContent)
+    {
+        var borderThickness = DataGrid.BorderThickness / 4;
+
+        var cellGrid = new Grid
+        {
+            // Define rows and columns for the border lines
+            RowDefinitions = { new RowDefinition { Height = new GridLength(borderThickness) }, new RowDefinition { Height = GridLength.Star }, new RowDefinition { Height = new GridLength(borderThickness) } },
+            ColumnDefinitions = { new ColumnDefinition { Width = new GridLength(borderThickness) }, new ColumnDefinition { Width = GridLength.Star }, new ColumnDefinition { Width = new GridLength(borderThickness) } }
+        };
+
+        // Add border lines
+        var leftBorder = new BoxView { Color = DataGrid.BorderColor };
+        Grid.SetColumn(leftBorder, 0);
+        Grid.SetRowSpan(leftBorder, 3);
+        cellGrid.Children.Add(leftBorder);
+
+        var rightBorder = new BoxView { Color = DataGrid.BorderColor };
+        Grid.SetColumn(rightBorder, 2);
+        Grid.SetRowSpan(rightBorder, 3);
+        cellGrid.Children.Add(rightBorder);
+
+        var topBorder = new BoxView { Color = DataGrid.BorderColor };
+        Grid.SetRow(topBorder, 0);
+        Grid.SetColumnSpan(topBorder, 3);
+        cellGrid.Children.Add(topBorder);
+
+        var bottomBorder = new BoxView { Color = DataGrid.BorderColor };
+        Grid.SetRow(bottomBorder, 2);
+        Grid.SetColumnSpan(bottomBorder, 3);
+        cellGrid.Children.Add(bottomBorder);
+
+        // Add content inside the borders
+        Grid.SetColumn(cellContent, 1);
+        Grid.SetRow(cellContent, 1);
+        cellGrid.Children.Add(cellContent);
+
+        return cellGrid;
     }
 
     private void UpdateColors()
