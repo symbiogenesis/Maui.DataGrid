@@ -1,5 +1,6 @@
 namespace Maui.DataGrid.Sample;
 
+using CommunityToolkit.Maui.Views;
 using Maui.DataGrid.Sample.ViewModels;
 
 [XamlCompilation(XamlCompilationOptions.Compile)]
@@ -8,12 +9,17 @@ public partial class MainPage
     public MainPage()
     {
         InitializeComponent();
-        BindingContext = new MainViewModel();
-        _addColumnButton1.Clicked += OnAddColumn;
+
+        BindingContext = new MainViewModel
+        {
+            Columns = _dataGrid1.Columns
+        };
     }
 
-    private void OnAddColumn(object sender, EventArgs e)
+    private async void OnSettingsClicked(object sender, EventArgs e)
     {
-        _dataGrid1.Columns.Add(new DataGridColumn() { Title = "Test", Width = new(100) });
+        var vm = (MainViewModel)BindingContext;
+        var settingsPopup = new SettingsPopup(vm);
+        _ = await Shell.Current.ShowPopupAsync(settingsPopup);
     }
 }

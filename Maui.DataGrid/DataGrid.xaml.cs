@@ -5,38 +5,51 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Windows.Input;
 using Maui.DataGrid.Extensions;
+using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Shapes;
 using Font = Microsoft.Maui.Font;
 
 /// <summary>
-/// DataGrid component for Maui
+/// DataGrid component for .NET MAUI
 /// </summary>
 [XamlCompilation(XamlCompilationOptions.Compile)]
 public partial class DataGrid
 {
     #region Fields
 
-    private static readonly ColumnDefinitionCollection HeaderColumnDefinitions = new()
-                {
+    private static readonly SortedSet<int> DefaultPageSizeList = [5, 10, 50, 100, 200, 1000];
+
+    private static readonly ColumnDefinitionCollection HeaderColumnDefinitions =
+                [
                     new() { Width = new(1, GridUnitType.Star) },
                     new() { Width = new(1, GridUnitType.Auto) }
-                };
+                ];
 
     private readonly WeakEventManager _itemSelectedEventManager = new();
     private readonly WeakEventManager _refreshingEventManager = new();
 
+    private readonly SortedSet<int> _pageSizeList = DefaultPageSizeList;
     private readonly Style _defaultHeaderStyle;
     private readonly Style _defaultSortIconStyle;
+
+    private readonly object _reloadLock = new();
+    private readonly object _sortAndPaginateLock = new();
+    private DataGridColumn? _sortedColumn;
 
     #endregion Fields
 
     #region ctor
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DataGrid"/> class.
+    /// </summary>
     public DataGrid()
     {
         InitializeComponent();
+        _collectionView.ItemsSource = InternalItems;
         _defaultHeaderStyle = (Style)Resources["DefaultHeaderStyle"];
         _defaultSortIconStyle = (Style)Resources["DefaultSortIconStyle"];
     }
@@ -45,12 +58,18 @@ public partial class DataGrid
 
     #region Events
 
+    /// <summary>
+    /// Occurs when an item is selected in the DataGrid.
+    /// </summary>
     public event EventHandler<SelectionChangedEventArgs> ItemSelected
     {
         add => _itemSelectedEventManager.AddEventHandler(value);
         remove => _itemSelectedEventManager.RemoveEventHandler(value);
     }
 
+    /// <summary>
+    /// Occurs when the DataGrid is being refreshed.
+    /// </summary>
     public event EventHandler Refreshing
     {
         add => _refreshingEventManager.AddEventHandler(value);
@@ -65,31 +84,31 @@ public partial class DataGrid
     {
         if (sortData is null)
         {
-            Console.WriteLine("No sort data");
+            Debug.WriteLine("No sort data");
             return false;
         }
 
         if (InternalItems is null)
         {
-            Console.WriteLine("There are no items to sort");
+            Debug.WriteLine("There are no items to sort");
             return false;
         }
 
         if (!IsSortable)
         {
-            Console.WriteLine("DataGrid is not sortable");
+            Debug.WriteLine("DataGrid is not sortable");
             return false;
         }
 
         if (Columns.Count < 1)
         {
-            Console.WriteLine("There are no columns on this DataGrid.");
+            Debug.WriteLine("There are no columns on this DataGrid.");
             return false;
         }
 
         if (sortData.Index >= Columns.Count)
         {
-            Console.WriteLine("Sort index is out of range");
+            Debug.WriteLine("Sort index is out of range");
             return false;
         }
 
@@ -97,19 +116,19 @@ public partial class DataGrid
 
         if (columnToSort.PropertyName == null)
         {
-            Console.WriteLine($"Please set the {nameof(columnToSort.PropertyName)} of the column");
+            Debug.WriteLine($"Please set the {nameof(columnToSort.PropertyName)} of the column");
             return false;
         }
 
         if (!columnToSort.SortingEnabled)
         {
-            Console.WriteLine($"{columnToSort.PropertyName} column does not have sorting enabled");
+            Debug.WriteLine($"{columnToSort.PropertyName} column does not have sorting enabled");
             return false;
         }
 
-        if (!columnToSort.IsSortable(this))
+        if (!columnToSort.IsSortable())
         {
-            Console.WriteLine($"{columnToSort.PropertyName} column is not sortable");
+            Debug.WriteLine($"{columnToSort.PropertyName} column is not sortable");
             return false;
         }
 
@@ -166,35 +185,65 @@ public partial class DataGrid
         return unpaginatedItems.Skip(skip).Take(PageSize);
     }
 
-    private void SortAndPaginate(SortData? sortData = null)
+    /// <summary>
+    /// Checks if PageSizeList contains the new PageSize value, so that it shows in the dropdown
+    /// </summary>
+    private void UpdatePageSizeList()
     {
-        if (ItemsSource is null)
+        if (PageSizeList.Contains(PageSize))
         {
             return;
         }
 
-        sortData ??= SortedColumnIndex;
-
-        var originalItems = ItemsSource.Cast<object>().ToList();
-
-        IList<object> sortedItems;
-
-        if (sortData != null && CanSort(sortData))
+        if (_pageSizeList.Add(PageSize))
         {
-            sortedItems = GetSortedItems(originalItems, sortData);
+            PageSizeList = new(_pageSizeList);
+            OnPropertyChanged(nameof(PageSizeList));
+            OnPropertyChanged(nameof(PageSize));
         }
-        else
-        {
-            sortedItems = originalItems;
-        }
+    }
 
-        if (PaginationEnabled)
+    private void SortAndPaginate(SortData? sortData = null)
+    {
+        lock (_sortAndPaginateLock)
         {
-            InternalItems = GetPaginatedItems(sortedItems).ToList();
-        }
-        else
-        {
-            InternalItems = sortedItems;
+            if (ItemsSource is null)
+            {
+                return;
+            }
+
+            sortData ??= SortedColumnIndex;
+
+            var originalItems = ItemsSource.Cast<object>().ToList();
+
+            PageCount = (int)Math.Ceiling(originalItems.Count / (double)PageSize);
+
+            if (originalItems.Count == 0)
+            {
+                InternalItems.Clear();
+                return;
+            }
+
+            IList<object> sortedItems;
+
+            if (sortData != null && CanSort(sortData))
+            {
+                sortedItems = GetSortedItems(originalItems, sortData);
+            }
+            else
+            {
+                sortedItems = originalItems;
+            }
+
+            if (PaginationEnabled)
+            {
+                var paginatedItems = GetPaginatedItems(sortedItems);
+                InternalItems.ReplaceRange(paginatedItems);
+            }
+            else
+            {
+                InternalItems.ReplaceRange(sortedItems);
+            }
         }
     }
 
@@ -214,11 +263,14 @@ public partial class DataGrid
 
     #region Bindable properties
 
+    /// <summary>
+    /// Gets or sets the color of the active row.
+    /// </summary>
     public static readonly BindableProperty ActiveRowColorProperty =
-        BindablePropertyExtensions.Create(Color.FromRgb(128, 144, 160),
+        BindablePropertyExtensions.Create<DataGrid, Color>(Color.FromRgb(128, 144, 160),
             coerceValue: (b, v) =>
             {
-                if (!((DataGrid)b).SelectionEnabled)
+                if (((DataGrid)b).SelectionMode == SelectionMode.None)
                 {
                     throw new InvalidOperationException("DataGrid must have SelectionEnabled to set ActiveRowColor");
                 }
@@ -226,8 +278,11 @@ public partial class DataGrid
                 return v;
             });
 
+    /// <summary>
+    /// Gets or sets the background color of the header.
+    /// </summary>
     public static readonly BindableProperty HeaderBackgroundProperty =
-        BindablePropertyExtensions.Create(Colors.White,
+        BindablePropertyExtensions.Create<DataGrid, Color>(Colors.White,
             propertyChanged: (b, o, n) =>
             {
                 var self = (DataGrid)b;
@@ -240,12 +295,18 @@ public partial class DataGrid
                 }
             });
 
+    /// <summary>
+    /// Gets or sets the background color of the footer.
+    /// </summary>
     public static readonly BindableProperty FooterBackgroundProperty =
-        BindablePropertyExtensions.Create(Colors.White);
+        BindablePropertyExtensions.Create<DataGrid, Color>(Colors.White);
 
+    /// <summary>
+    /// Gets or sets the color of the border.
+    /// </summary>
     public static readonly BindableProperty BorderColorProperty =
-        BindablePropertyExtensions.Create(Colors.Black,
-            propertyChanged: (b, _, _) =>
+        BindablePropertyExtensions.Create<DataGrid, Color>(Colors.Black,
+            propertyChanged: (b, _, n) =>
             {
                 var self = (DataGrid)b;
 
@@ -257,11 +318,23 @@ public partial class DataGrid
                 self.Reload();
             });
 
+    /// <summary>
+    /// Gets or sets the ItemSizingStrategy for the data grid.
+    /// </summary>
     public static readonly BindableProperty ItemSizingStrategyProperty =
-        BindablePropertyExtensions.Create(DeviceInfo.Platform == DevicePlatform.Android ? ItemSizingStrategy.MeasureAllItems : ItemSizingStrategy.MeasureFirstItem);
+        BindablePropertyExtensions.Create<DataGrid, ItemSizingStrategy>(DeviceInfo.Platform == DevicePlatform.Android ? ItemSizingStrategy.MeasureAllItems : ItemSizingStrategy.MeasureFirstItem);
 
+    /// <summary>
+    /// Gets or sets the row to edit.
+    /// </summary>
+    public static readonly BindableProperty RowToEditProperty =
+        BindablePropertyExtensions.Create<DataGrid, object>();
+
+    /// <summary>
+    /// Gets or sets the background color palette for the rows.
+    /// </summary>
     public static readonly BindableProperty RowsBackgroundColorPaletteProperty =
-        BindablePropertyExtensions.Create<IColorProvider>(new PaletteCollection { Colors.White },
+        BindablePropertyExtensions.Create<DataGrid, IColorProvider>(new PaletteCollection { Colors.White },
             propertyChanged: (b, _, _) =>
             {
                 var self = (DataGrid)b;
@@ -271,8 +344,11 @@ public partial class DataGrid
                 }
             });
 
+    /// <summary>
+    /// Gets or sets the text color palette for the rows.
+    /// </summary>
     public static readonly BindableProperty RowsTextColorPaletteProperty =
-        BindablePropertyExtensions.Create<IColorProvider>(new PaletteCollection { Colors.Black },
+        BindablePropertyExtensions.Create<DataGrid, IColorProvider>(new PaletteCollection { Colors.Black },
             propertyChanged: (b, _, _) =>
             {
                 var self = (DataGrid)b;
@@ -282,8 +358,11 @@ public partial class DataGrid
                 }
             });
 
+    /// <summary>
+    /// Gets or sets the Columns for the DataGrid.
+    /// </summary>
     public static readonly BindableProperty ColumnsProperty =
-        BindablePropertyExtensions.Create(new ObservableCollection<DataGridColumn>(),
+        BindablePropertyExtensions.Create<DataGrid, ObservableCollection<DataGridColumn>>([],
             propertyChanged: (b, o, n) =>
             {
                 if (n == o || b is not DataGrid self)
@@ -315,8 +394,11 @@ public partial class DataGrid
             },
             defaultValueCreator: _ => new ObservableCollection<DataGridColumn>());
 
+    /// <summary>
+    /// Gets or sets the ItemsSource for the DataGrid.
+    /// </summary>
     public static readonly BindableProperty ItemsSourceProperty =
-        BindablePropertyExtensions.Create<IEnumerable>(
+        BindablePropertyExtensions.Create<DataGrid, IEnumerable>(
             propertyChanged: (b, o, n) =>
             {
                 if (n == o || b is not DataGrid self)
@@ -324,102 +406,128 @@ public partial class DataGrid
                     return;
                 }
 
-                //ObservableCollection Tracking
+                // Unsubscribe from old collection's change event
                 if (o is INotifyCollectionChanged oldCollection)
                 {
                     oldCollection.CollectionChanged -= self.OnItemsSourceCollectionChanged;
                 }
 
-                if (n == null)
+                // Subscribe to new collection's change event and update properties
+                if (n is INotifyCollectionChanged newCollection)
                 {
-                    self.InternalItems = null;
-                }
-                else
-                {
-                    if (n is INotifyCollectionChanged newCollection)
-                    {
-                        newCollection.CollectionChanged += self.OnItemsSourceCollectionChanged;
-                    }
-
-                    var itemsSource = n.Cast<object>().ToList();
-
-                    self.PageCount = (int)Math.Ceiling(itemsSource.Count / (double)self.PageSize);
-
-                    self.SortAndPaginate();
+                    newCollection.CollectionChanged += self.OnItemsSourceCollectionChanged;
                 }
 
+                self.SortAndPaginate();
+
+                // Reset SelectedItem if it's not in the new collection
                 if (self.SelectedItem != null && self.InternalItems?.Contains(self.SelectedItem) != true)
                 {
                     self.SelectedItem = null;
                 }
             });
 
-    private void OnItemsSourceCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        SortAndPaginate();
-
-        if (SelectedItem != null && InternalItems?.Contains(SelectedItem) != true)
-        {
-            SelectedItem = null;
-        }
-    }
-
-    public static readonly BindableProperty PageCountProperty =
-        BindablePropertyExtensions.Create(1,
+    /// <summary>
+    /// Gets or sets a value indicating whether pagination is enabled in the DataGrid.
+    /// </summary>
+    public static readonly BindableProperty PaginationEnabledProperty =
+        BindablePropertyExtensions.Create<DataGrid, bool>(false,
             propertyChanged: (b, o, n) =>
             {
-                if (o != n && b is DataGrid self && n > 0)
+                if (o != n)
                 {
-                    if (n > 1)
-                    {
-                        self._paginationStepper.IsEnabled = true;
-                        self._paginationStepper.Maximum = n;
-                    }
-                    else
-                    {
-                        self._paginationStepper.IsEnabled = false;
-                    }
+                    var self = (DataGrid)b;
+                    self.SortAndPaginate();
                 }
             });
 
+    /// <summary>
+    /// Gets or sets the page count for the DataGrid.
+    /// </summary>
+    public static readonly BindableProperty PageCountProperty =
+        BindablePropertyExtensions.Create<DataGrid, int>(1, BindingMode.OneWayToSource);
+
+    /// <summary>
+    /// Gets or sets the page size for the DataGrid.
+    /// </summary>
     public static readonly BindableProperty PageSizeProperty =
-        BindablePropertyExtensions.Create(100,
+        BindablePropertyExtensions.Create<DataGrid, int>(100, BindingMode.TwoWay,
             propertyChanged: (b, o, n) =>
             {
                 if (o != n && b is DataGrid self)
                 {
                     self.PageNumber = 1;
-                    if (self.ItemsSource != null)
-                    {
-                        self.PageCount = (int)Math.Ceiling(self.ItemsSource.Cast<object>().Count() / (double)self.PageSize);
-                    }
                     self.SortAndPaginate();
+                    self.UpdatePageSizeList();
                 }
             });
 
+    /// <summary>
+    /// Gets or sets the list of available page sizes for the DataGrid.
+    /// </summary>
+    public static readonly BindableProperty PageSizeListProperty =
+        BindablePropertyExtensions.Create<DataGrid, ObservableCollection<int>>(new(DefaultPageSizeList),
+                        propertyChanged: (b, o, n) =>
+                        {
+                            if (o != n && b is DataGrid self)
+                            {
+                                self.UpdatePageSizeList();
+                            }
+                        });
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the page size is visible in the DataGrid.
+    /// </summary>
     public static readonly BindableProperty PageSizeVisibleProperty =
-        BindablePropertyExtensions.Create(true);
+        BindablePropertyExtensions.Create<DataGrid, bool>(true);
 
+    /// <summary>
+    /// Gets or sets the list of available page sizes for the DataGrid.
+    /// </summary>
+    public static readonly BindableProperty PaginationStepperStyleProperty =
+        BindablePropertyExtensions.Create<DataGrid, Style>(defaultValueCreator: x => x?.Resources["DefaultPaginationStepperStyle"] as Style);
+
+    /// <summary>
+    /// Gets or sets the row height for the DataGrid.
+    /// </summary>
     public static readonly BindableProperty RowHeightProperty =
-        BindablePropertyExtensions.Create(40);
+        BindablePropertyExtensions.Create<DataGrid, int>(40);
 
+    /// <summary>
+    /// Gets or sets the height of the footer in the DataGrid.
+    /// </summary>
     public static readonly BindableProperty FooterHeightProperty =
-        BindablePropertyExtensions.Create(DeviceInfo.Platform == DevicePlatform.Android ? 50 : 40);
+        BindablePropertyExtensions.Create<DataGrid, int>(DeviceInfo.Platform == DevicePlatform.Android ? 50 : 40);
 
+    /// <summary>
+    /// Gets or sets the height of the header in the DataGrid.
+    /// </summary>
     public static readonly BindableProperty HeaderHeightProperty =
-        BindablePropertyExtensions.Create(40);
+        BindablePropertyExtensions.Create<DataGrid, int>(40);
 
+    /// <summary>
+    /// Gets or sets a value indicating whether the DataGrid is sortable.
+    /// </summary>
     public static readonly BindableProperty IsSortableProperty =
-        BindablePropertyExtensions.Create(true);
+        BindablePropertyExtensions.Create<DataGrid, bool>(true);
 
+    /// <summary>
+    /// Gets or sets the font size for the DataGrid.
+    /// </summary>
     public static readonly BindableProperty FontSizeProperty =
-        BindablePropertyExtensions.Create(13.0);
+        BindablePropertyExtensions.Create<DataGrid, double>(13.0);
 
+    /// <summary>
+    /// Gets or sets the font family for the DataGrid.
+    /// </summary>
     public static readonly BindableProperty FontFamilyProperty =
-        BindablePropertyExtensions.Create(Font.Default.Family);
+        BindablePropertyExtensions.Create<DataGrid, string>(Font.Default.Family);
 
+    /// <summary>
+    /// Gets or sets the selected item in the DataGrid.
+    /// </summary>
     public static readonly BindableProperty SelectedItemProperty =
-        BindablePropertyExtensions.Create<object>(null, BindingMode.TwoWay,
+        BindablePropertyExtensions.Create<DataGrid, object>(null, BindingMode.TwoWay,
             propertyChanged: (b, _, n) =>
             {
                 var self = (DataGrid)b;
@@ -430,17 +538,12 @@ public partial class DataGrid
             },
             coerceValue: (b, v) =>
             {
-                if (v is null || b is not DataGrid self)
+                if (v is null || b is not DataGrid self || self.SelectionMode == SelectionMode.None)
                 {
                     return null;
                 }
 
-                if (!self.SelectionEnabled)
-                {
-                    throw new InvalidOperationException("DataGrid must have SelectionEnabled=true to set SelectedItem");
-                }
-
-                if (self.InternalItems?.Contains(v) == true)
+                if (self.InternalItems.Contains(v))
                 {
                     return v;
                 }
@@ -449,19 +552,43 @@ public partial class DataGrid
             }
         );
 
-    public static readonly BindableProperty PaginationEnabledProperty =
-        BindablePropertyExtensions.Create(false,
-            propertyChanged: (b, o, n) =>
+    /// <summary>
+    /// Gets or sets the selected items in the DataGrid.
+    /// </summary>
+    public static readonly BindableProperty SelectedItemsProperty =
+        BindablePropertyExtensions.Create<DataGrid, ObservableRangeCollection<object>>([], BindingMode.TwoWay,
+            propertyChanged: (b, _, n) =>
             {
-                if (o != n)
+                var self = (DataGrid)b;
+                if (self._collectionView.SelectedItems != n)
                 {
-                    var self = (DataGrid)b;
-                    self.SortAndPaginate();
+                    self._collectionView.SelectedItems = n;
                 }
-            });
+            },
+            coerceValue: (b, v) =>
+            {
+                if (v is null || b is not DataGrid self || self.SelectionMode == SelectionMode.None)
+                {
+                    return null;
+                }
 
+                foreach (var selectedItem in v)
+                {
+                    if (!self.InternalItems.Contains(selectedItem))
+                    {
+                        return null;
+                    }
+                }
+
+                return null;
+            }
+        );
+
+    /// <summary>
+    /// Gets or sets a value indicating whether selection is enabled in the DataGrid.
+    /// </summary>
     public static readonly BindableProperty SelectionEnabledProperty =
-        BindablePropertyExtensions.Create(true,
+        BindablePropertyExtensions.Create<DataGrid, bool>(true,
             propertyChanged: (b, o, n) =>
             {
                 if (o != n && !n)
@@ -471,8 +598,37 @@ public partial class DataGrid
                 }
             });
 
+    /// <summary>
+    /// Gets or sets a value indicating whether selection is enabled in the DataGrid.
+    /// </summary>
+    public static readonly BindableProperty SelectionModeProperty =
+        BindablePropertyExtensions.Create<DataGrid, SelectionMode>(SelectionMode.Single, BindingMode.TwoWay,
+            propertyChanged: (b, _, n) =>
+            {
+                var self = (DataGrid)b;
+
+                switch (n)
+                {
+                    case SelectionMode.None:
+                        self.SelectedItem = null;
+                        self.SelectedItems.Clear();
+                        break;
+                    case SelectionMode.Single:
+                        self.SelectedItems.Clear();
+                        break;
+                    case SelectionMode.Multiple:
+                        self.SelectedItem = null;
+                        break;
+                }
+
+                self._collectionView.SelectionMode = n;
+            });
+
+    /// <summary>
+    /// Gets or sets a value indicating whether refreshing is enabled in the DataGrid.
+    /// </summary>
     public static readonly BindableProperty RefreshingEnabledProperty =
-        BindablePropertyExtensions.Create(true,
+        BindablePropertyExtensions.Create<DataGrid, bool>(true,
             propertyChanged: (b, o, n) =>
             {
                 if (o != n)
@@ -482,8 +638,11 @@ public partial class DataGrid
                 }
             });
 
+    /// <summary>
+    /// Gets or sets the command to execute when the data grid is pulled to refresh.
+    /// </summary>
     public static readonly BindableProperty PullToRefreshCommandProperty =
-        BindablePropertyExtensions.Create<ICommand>(
+        BindablePropertyExtensions.Create<DataGrid, ICommand>(
             propertyChanged: (b, o, n) =>
             {
                 if (o == n || b is not DataGrid self)
@@ -502,11 +661,29 @@ public partial class DataGrid
                 }
             });
 
-    public static readonly BindableProperty IsRefreshingProperty =
-        BindablePropertyExtensions.Create(false, BindingMode.TwoWay);
+    /// <summary>
+    /// Gets or sets the parameter to pass to the <see cref="PullToRefreshCommand"/>
+    /// </summary>
+    public static readonly BindableProperty PullToRefreshCommandParameterProperty =
+        BindablePropertyExtensions.Create<DataGrid, object>();
 
+    /// <summary>
+    /// Gets or sets the spinner color to use while refreshing.
+    /// </summary>
+    public static readonly BindableProperty RefreshColorProperty =
+        BindablePropertyExtensions.Create<DataGrid, Color>(Colors.Purple);
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the DataGrid is refreshing.
+    /// </summary>
+    public static readonly BindableProperty IsRefreshingProperty =
+        BindablePropertyExtensions.Create<DataGrid, bool>(false, BindingMode.TwoWay);
+
+    /// <summary>
+    /// Gets or sets the thickness of the border around the DataGrid.
+    /// </summary>
     public static readonly BindableProperty BorderThicknessProperty =
-        BindablePropertyExtensions.Create(1d,
+        BindablePropertyExtensions.Create<DataGrid, Thickness>(new Thickness(1),
             propertyChanged: (b, o, n) =>
             {
                 if (o != n && b is DataGrid self)
@@ -516,8 +693,11 @@ public partial class DataGrid
                 }
             });
 
+    /// <summary>
+    /// Gets or sets a value indicating whether the header borders are visible in the DataGrid.
+    /// </summary>
     public static readonly BindableProperty HeaderBordersVisibleProperty =
-        BindablePropertyExtensions.Create(true,
+        BindablePropertyExtensions.Create<DataGrid, bool>(true,
             propertyChanged: (b, _, _) =>
             {
                 if (b is DataGrid self)
@@ -526,8 +706,11 @@ public partial class DataGrid
                 }
             });
 
+    /// <summary>
+    /// Gets or sets the index of the sorted column in the DataGrid.
+    /// </summary>
     public static readonly BindableProperty SortedColumnIndexProperty =
-        BindablePropertyExtensions.Create<SortData>(null, BindingMode.TwoWay,
+        BindablePropertyExtensions.Create<DataGrid, SortData>(null, BindingMode.TwoWay,
             (b, v) =>
             {
                 var self = (DataGrid)b;
@@ -543,12 +726,20 @@ public partial class DataGrid
             {
                 if (o != n && b is DataGrid self)
                 {
+                    if (n != null && Math.Abs(n.Index) < self.Columns.Count)
+                    {
+                        self._sortedColumn = self.Columns[n.Index];
+                    }
+
                     self.SortAndPaginate(n);
                 }
             });
 
+    /// <summary>
+    /// Gets or sets the current page number in the DataGrid.
+    /// </summary>
     public static readonly BindableProperty PageNumberProperty =
-        BindablePropertyExtensions.Create(1, BindingMode.TwoWay,
+        BindablePropertyExtensions.Create<DataGrid, int>(1, BindingMode.TwoWay,
             (b, v) =>
             {
                 if (b is DataGrid self)
@@ -560,20 +751,29 @@ public partial class DataGrid
             },
             (b, o, n) =>
             {
-                if (o != n && b is DataGrid self && self.ItemsSource?.Cast<object>().Any() == true)
+                if (o != n && b is DataGrid self)
                 {
                     self.SortAndPaginate();
                 }
             });
 
+    /// <summary>
+    /// Gets or sets the style for the header labels in the DataGrid.
+    /// </summary>
     public static readonly BindableProperty HeaderLabelStyleProperty =
-        BindablePropertyExtensions.Create<Style>();
+        BindablePropertyExtensions.Create<DataGrid, Style>();
 
+    /// <summary>
+    /// Gets or sets the sort icons for the DataGrid.
+    /// </summary>
     public static readonly BindableProperty SortIconProperty =
-        BindablePropertyExtensions.Create<Polygon>();
+        BindablePropertyExtensions.Create<DataGrid, Polygon>();
 
+    /// <summary>
+    /// Gets or sets the style for the sort icons in the DataGrid.
+    /// </summary>
     public static readonly BindableProperty SortIconStyleProperty =
-        BindablePropertyExtensions.Create<Style>(
+        BindablePropertyExtensions.Create<DataGrid, Style>(
             propertyChanged: (b, o, n) =>
             {
                 if (o != n && b is DataGrid self)
@@ -585,8 +785,11 @@ public partial class DataGrid
                 }
             });
 
+    /// <summary>
+    /// Gets or sets the view to be displayed when the DataGrid has no data.
+    /// </summary>
     public static readonly BindableProperty NoDataViewProperty =
-        BindablePropertyExtensions.Create<View>(
+        BindablePropertyExtensions.Create<DataGrid, View>(
             propertyChanged: (b, o, n) =>
             {
                 if (o != n && b is DataGrid self)
@@ -599,6 +802,8 @@ public partial class DataGrid
 
     #region Properties
 
+#pragma warning disable CA2227 // Collection properties should be read only
+
     /// <summary>
     /// Selected Row color
     /// </summary>
@@ -610,7 +815,7 @@ public partial class DataGrid
 
     /// <summary>
     /// BackgroundColor of the column header
-    /// Default value is White
+    /// Default value is <see cref="Colors.White"/>
     /// </summary>
     public Color HeaderBackground
     {
@@ -620,7 +825,7 @@ public partial class DataGrid
 
     /// <summary>
     /// BackgroundColor of the footer that contains pagination elements
-    /// Default value is White
+    /// Default value is <see cref="Colors.White"/>
     /// </summary>
     public Color FooterBackground
     {
@@ -640,12 +845,21 @@ public partial class DataGrid
 
     /// <summary>
     /// ItemSizingStrategy
-    /// Default Value is MeasureFirstItem, except on Android
+    /// Default Value is <see cref="ItemSizingStrategy.MeasureFirstItem"/>, except on Android
     /// </summary>
     public ItemSizingStrategy ItemSizingStrategy
     {
         get => (ItemSizingStrategy)GetValue(ItemSizingStrategyProperty);
         set => SetValue(ItemSizingStrategyProperty, value);
+    }
+
+    /// <summary>
+    /// The row to set to edit mode.
+    /// </summary>
+    public object RowToEdit
+    {
+        get => GetValue(RowToEditProperty);
+        set => SetValue(RowToEditProperty, value);
     }
 
     /// <summary>
@@ -675,21 +889,6 @@ public partial class DataGrid
         set => SetValue(ItemsSourceProperty, value);
     }
 
-    private IList<object>? _internalItems;
-
-    internal IList<object>? InternalItems
-    {
-        get => _internalItems;
-        set
-        {
-            if (_internalItems != value)
-            {
-                _internalItems = value;
-                _collectionView.ItemsSource = _internalItems; // TODO: Are we using the most efficient CollectionChanged handling with observables?
-            }
-        }
-    }
-
     /// <summary>
     /// Columns
     /// </summary>
@@ -701,7 +900,7 @@ public partial class DataGrid
 
     /// <summary>
     /// Font size of the cells.
-    /// It does not sets header font size. Use <c>HeaderLabelStyle</c> to set header font size.
+    /// It does not sets header font size. Use <see cref="HeaderLabelStyle"/> to set header font size.
     /// </summary>
     [TypeConverter(typeof(FontSizeConverter))]
     public double FontSize
@@ -712,7 +911,7 @@ public partial class DataGrid
 
     /// <summary>
     /// Sets the font family.
-    /// It does not sets header font family. Use <c>HeaderLabelStyle</c> to set header font size.
+    /// It does not sets header font family. Use <see cref="HeaderLabelStyle"/> to set header font size.
     /// </summary>
     public string FontFamily
     {
@@ -730,9 +929,13 @@ public partial class DataGrid
     }
 
     /// <summary>
-    /// List of page sizes
+    /// Gets or sets the list of available page sizes
     /// </summary>
-    public List<int> PageSizeList { get; } = new() { 5, 10, 50, 100, 200, 1000 };
+    public ObservableCollection<int> PageSizeList
+    {
+        get => (ObservableCollection<int>)GetValue(PageSizeListProperty);
+        set => SetValue(PageSizeListProperty, value);
+    }
 
     /// <summary>
     /// Gets or sets whether the page size picker is visible
@@ -741,6 +944,15 @@ public partial class DataGrid
     {
         get => (bool)GetValue(PageSizeVisibleProperty);
         set => SetValue(PageSizeVisibleProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets the pagination stepper style
+    /// </summary>
+    public Style? PaginationStepperStyle
+    {
+        get => (Style?)GetValue(PaginationStepperStyleProperty);
+        set => SetValue(PaginationStepperStyleProperty, value);
     }
 
     /// <summary>
@@ -773,7 +985,7 @@ public partial class DataGrid
     /// <summary>
     /// Gets or sets if the grid is sortable. Default value is true.
     /// Sortable columns must implement <see cref="IComparable"/>
-    /// If you want to enable or disable sorting for specific column please use <c>SortingEnabled</c> property
+    /// If you want to enable or disable sorting for specific column please use <see cref="DataGridColumn.SortingEnabled"/> property
     /// </summary>
     public bool IsSortable
     {
@@ -800,12 +1012,12 @@ public partial class DataGrid
     }
 
     /// <summary>
-    /// Enables selection in dataGrid. Default value is True
+    /// Set the SelectionMode for the DataGrid. Default value is Single
     /// </summary>
-    public bool SelectionEnabled
+    public SelectionMode SelectionMode
     {
-        get => (bool)GetValue(SelectionEnabledProperty);
-        set => SetValue(SelectionEnabledProperty, value);
+        get => (SelectionMode)GetValue(SelectionModeProperty);
+        set => SetValue(SelectionModeProperty, value);
     }
 
     /// <summary>
@@ -818,12 +1030,33 @@ public partial class DataGrid
     }
 
     /// <summary>
+    /// Selected items
+    /// </summary>
+    public ObservableCollection<object> SelectedItems
+    {
+        get => (ObservableCollection<object>)GetValue(SelectedItemsProperty);
+        set => SetValue(SelectedItemsProperty, value);
+    }
+
+    /// <summary>
     /// Executes the command when refreshing via pull
     /// </summary>
     public ICommand PullToRefreshCommand
     {
         get => (ICommand)GetValue(PullToRefreshCommandProperty);
         set => SetValue(PullToRefreshCommandProperty, value);
+    }
+
+    public object PullToRefreshCommandParameter
+    {
+        get => GetValue(PullToRefreshCommandParameterProperty);
+        set => SetValue(PullToRefreshCommandParameterProperty, value);
+    }
+
+    public Color RefreshColor
+    {
+        get => (Color)GetValue(RefreshColorProperty);
+        set => SetValue(RefreshColorProperty, value);
     }
 
     /// <summary>
@@ -855,7 +1088,7 @@ public partial class DataGrid
 
     /// <summary>
     /// Determines to show the borders of header cells.
-    /// Default value is <c>true</c>
+    /// Default value is true
     /// </summary>
     public bool HeaderBordersVisible
     {
@@ -874,7 +1107,7 @@ public partial class DataGrid
 
     /// <summary>
     /// Style of the header label.
-    /// Style's <c>TargetType</c> must be Label.
+    /// Style's <see cref="Style.TargetType"/> must be Label.
     /// </summary>
     public Style HeaderLabelStyle
     {
@@ -893,7 +1126,7 @@ public partial class DataGrid
 
     /// <summary>
     /// Style of the sort icon
-    /// Style's <c>TargetType</c> must be Polygon.
+    /// Style's <see cref="Style.TargetType"/> must be Polygon.
     /// </summary>
     public Style SortIconStyle
     {
@@ -915,9 +1148,20 @@ public partial class DataGrid
     /// </summary>
     public int PageCount
     {
-        get => (int)GetValue(PageCountProperty);
-        private set => SetValue(PageCountProperty, value);
+        get => (int)_paginationStepper.Maximum;
+        private set
+        {
+            if (value > 0)
+            {
+                _paginationStepper.Maximum = value;
+                _paginationStepper.IsEnabled = value > 1;
+            }
+        }
     }
+
+#pragma warning restore CA2227 // Collection properties should be read only
+
+    internal ObservableRangeCollection<object> InternalItems { get; } = [];
 
     #endregion Properties
 
@@ -932,8 +1176,9 @@ public partial class DataGrid
         {
             _collectionView.SelectionChanged -= OnSelectionChanged;
         }
-        else if (SelectionEnabled)
+        else
         {
+            _collectionView.SelectionChanged -= OnSelectionChanged;
             _collectionView.SelectionChanged += OnSelectionChanged;
         }
 
@@ -943,26 +1188,29 @@ public partial class DataGrid
         }
         else if (RefreshingEnabled)
         {
+            _refreshView.Refreshing -= OnRefreshing;
             _refreshView.Refreshing += OnRefreshing;
         }
 
         if (Parent is null)
         {
-            Columns.CollectionChanged -= OnColumnsChanged;
-
             foreach (var column in Columns)
             {
                 column.SizeChanged -= OnColumnSizeChanged;
             }
+
+            Columns.CollectionChanged -= OnColumnsChanged;
         }
         else
         {
-            Columns.CollectionChanged += OnColumnsChanged;
-
             foreach (var column in Columns)
             {
+                column.SizeChanged -= OnColumnSizeChanged;
                 column.SizeChanged += OnColumnSizeChanged;
             }
+
+            Columns.CollectionChanged -= OnColumnsChanged;
+            Columns.CollectionChanged += OnColumnsChanged;
         }
     }
 
@@ -973,7 +1221,18 @@ public partial class DataGrid
         InitHeaderView();
     }
 
-    private void OnColumnsChanged(object? sender, NotifyCollectionChangedEventArgs e) => Reload();
+    private void OnColumnsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        var newSortedColumnIndex = RegenerateSortedColumnIndex();
+
+        if (newSortedColumnIndex != SortedColumnIndex)
+        {
+            // This will do a SortAndPaginate via the propertyChanged event of the SortedColumnIndexProperty
+            SortedColumnIndex = newSortedColumnIndex;
+        }
+
+        Reload();
+    }
 
     private void OnColumnSizeChanged(object? sender, EventArgs e) => Reload();
 
@@ -981,18 +1240,106 @@ public partial class DataGrid
 
     private void OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        SelectedItem = _collectionView.SelectedItem;
+        switch (SelectionMode)
+        {
+            case SelectionMode.Single:
+                var collectionView = sender as CollectionView;
+
+                if (e.CurrentSelection.Count > 1)
+                {
+                    collectionView?.SelectedItems.Clear();
+                }
+
+                SelectedItem = collectionView?.SelectedItem;
+
+                break;
+
+            case SelectionMode.Multiple:
+                var isChanged = false;
+
+                if (e.CurrentSelection.Count == SelectedItems.Count)
+                {
+                    for (var i = 0; i < e.CurrentSelection.Count; i++)
+                    {
+                        if (SelectedItems[i] != e.CurrentSelection[i])
+                        {
+                            isChanged = true;
+                        }
+                    }
+                }
+
+                if (isChanged && SelectedItems is ObservableRangeCollection<object> selectedItems)
+                {
+                    selectedItems.ReplaceRange(e.CurrentSelection);
+                }
+
+                break;
+
+            case SelectionMode.None:
+                if (e.CurrentSelection.Count != 0)
+                {
+                    throw new InvalidOperationException("Item(s) selected when SelectionMode is None");
+                }
+
+                break;
+        }
 
         _itemSelectedEventManager.HandleEvent(this, e, nameof(ItemSelected));
     }
 
+    private void OnItemsSourceCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        SortAndPaginate();
+
+        switch (SelectionMode)
+        {
+            case SelectionMode.Single:
+                if (SelectedItem != null && InternalItems?.Contains(SelectedItem) != true)
+                {
+                    SelectedItem = null;
+                }
+
+                break;
+            case SelectionMode.Multiple:
+                if (SelectedItems != null)
+                {
+                    foreach (var selectedItem in SelectedItems)
+                    {
+                        if (!InternalItems.Contains(selectedItem))
+                        {
+                            SelectedItems.Clear();
+                        }
+                    }
+                }
+
+                break;
+        }
+    }
+
+    private SortData? RegenerateSortedColumnIndex()
+    {
+        if (_sortedColumn != null && SortedColumnIndex != null)
+        {
+            var newSortedColumnIndex = Columns.IndexOf(_sortedColumn);
+
+            if (newSortedColumnIndex == -1)
+            {
+                return null;
+            }
+
+            return new(newSortedColumnIndex, SortedColumnIndex.Order);
+        }
+
+        return SortedColumnIndex;
+    }
+
     internal void Reload()
     {
-        InitHeaderView();
-
-        if (_internalItems is not null)
+        lock (_reloadLock)
         {
-            InternalItems = new List<object>(_internalItems);
+            UpdatePageSizeList();
+
+            InitHeaderView();
         }
     }
 
@@ -1009,7 +1356,7 @@ public partial class DataGrid
 
         column.HeaderLabel.Style = column.HeaderLabelStyle ?? HeaderLabelStyle ?? _defaultHeaderStyle;
 
-        if (!IsSortable || !column.SortingEnabled || !column.IsSortable(this))
+        if (!IsSortable || !column.SortingEnabled || !column.IsSortable())
         {
             cellBorder.Content = new ContentView
             {
@@ -1029,7 +1376,27 @@ public partial class DataGrid
             ColumnSpacing = 0,
             Padding = new(0, 0, 4, 0),
             ColumnDefinitions = HeaderColumnDefinitions,
-            Children = { column.HeaderLabel, column.SortingIconContainer }
+            Children = { column.HeaderLabel, column.SortingIconContainer },
+            GestureRecognizers =
+                {
+                    new TapGestureRecognizer
+                    {
+                        Command = new Command<DataGridColumn>(c =>
+                        {
+                            // This is to invert SortOrder when the user taps on a column.
+                            var order = c.SortingOrder == SortingOrder.Ascendant
+                                ? SortingOrder.Descendant
+                                : SortingOrder.Ascendant;
+
+                            var index = Columns.IndexOf(c);
+
+                            SortedColumnIndex = new(index, order);
+
+                            c.SortingOrder = order;
+                        }, c => c.SortingEnabled && Columns.Contains(c)),
+                        CommandParameter = column
+                    }
+                }
         };
 
         var sortRecognizer = new TapGestureRecognizer
@@ -1068,11 +1435,10 @@ public partial class DataGrid
         SetColumnsBindingContext();
 
         _headerView.Children.Clear();
-        _headerView.ColumnDefinitions.Clear();
-        ResetSortingOrders();
 
         if (Columns == null)
         {
+            _headerView.ColumnDefinitions.Clear();
             return;
         }
 
@@ -1080,11 +1446,21 @@ public partial class DataGrid
         {
             var col = Columns[i];
 
-            col.ColumnDefinition ??= new(col.Width);
-
             col.DataGrid ??= this;
 
-            _headerView.ColumnDefinitions.Add(col.ColumnDefinition);
+            col.InitializeDataType();
+
+            col.ColumnDefinition ??= new(col.Width);
+
+            // Add or update columns as needed
+            if (i > _headerView.ColumnDefinitions.Count - 1)
+            {
+                _headerView.ColumnDefinitions.Add(col.ColumnDefinition);
+            }
+            else if (_headerView.ColumnDefinitions[i] != col.ColumnDefinition)
+            {
+                _headerView.ColumnDefinitions[i] = col.ColumnDefinition;
+            }
 
             if (!col.IsVisible)
             {
@@ -1100,13 +1476,11 @@ public partial class DataGrid
             Grid.SetColumn(col.HeaderView, i);
             _headerView.Children.Add(col.HeaderView);
         }
-    }
 
-    private void ResetSortingOrders()
-    {
-        foreach (var column in Columns)
+        // Remove extra columns
+        for (var i = _headerView.ColumnDefinitions.Count - 1; i > Columns.Count - 1; i--)
         {
-            column.SortingOrder = SortingOrder.None;
+            _headerView.ColumnDefinitions.RemoveAt(i);
         }
     }
 

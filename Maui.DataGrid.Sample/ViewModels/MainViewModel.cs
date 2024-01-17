@@ -1,10 +1,8 @@
 namespace Maui.DataGrid.Sample.ViewModels;
 
-using System.ComponentModel;
-using System.Diagnostics;
-using System.Windows.Input;
-using Maui.DataGrid.Sample.Models;
-using Maui.DataGrid.Sample.Utils;
+using System.Collections.ObjectModel;
+using Models;
+using Utils;
 
 public class MainViewModel : INotifyPropertyChanged
 {
@@ -15,53 +13,56 @@ public class MainViewModel : INotifyPropertyChanged
     private bool _wonColumnVisible = true;
     private bool _headerBordersVisible = true;
     private bool _paginationEnabled = true;
-    private double _borderThickness = 1;
     private ushort _teamColumnWidth = 70;
 
     public MainViewModel()
     {
         Teams = DummyDataProvider.GetTeams();
-        RefreshCommand = new Command(CmdRefresh);
+        TeamColumnVisible = true;
+        WonColumnVisible = true;
+        HeaderBordersVisible = true;
+        PaginationEnabled = true;
+        TeamColumnWidth = 70;
+        SelectionMode = SelectionMode.Single;
+        PageSize = 6;
+
+        Commands.Add("CompleteEdit", new Command(CmdCompleteEdit));
+        Commands.Add("Edit", new Command<Team>(CmdEdit));
+        Commands.Add("Refresh", new Command(CmdRefresh));
+    }
+
+    public IEnumerable<SelectionMode> SelectionModes => Enum.GetValues<SelectionMode>().Cast<SelectionMode>();
+
+    public ObservableCollection<DataGridColumn> Columns { get; set; }
+
+    public Team TeamToEdit
+    {
+        get => GetValue<Team>();
+        set => SetValue(value);
     }
 
     public List<Team> Teams
     {
-        get => _teams;
-        set
-        {
-            _teams = value;
-            OnPropertyChanged(nameof(Teams));
-        }
+        get => GetValue<List<Team>>();
+        set => SetValue(value);
     }
 
     public bool HeaderBordersVisible
     {
-        get => _headerBordersVisible;
-        set
-        {
-            _headerBordersVisible = value;
-            OnPropertyChanged(nameof(HeaderBordersVisible));
-        }
+        get => GetValue<bool>();
+        set => SetValue(value);
     }
 
     public bool TeamColumnVisible
     {
-        get => _teamColumnVisible;
-        set
-        {
-            _teamColumnVisible = value;
-            OnPropertyChanged(nameof(TeamColumnVisible));
-        }
+        get => GetValue<bool>();
+        set => SetValue(value);
     }
 
     public bool WonColumnVisible
     {
-        get => _wonColumnVisible;
-        set
-        {
-            _wonColumnVisible = value;
-            OnPropertyChanged(nameof(WonColumnVisible));
-        }
+        get => GetValue<bool>();
+        set => SetValue(value);
     }
 
     public double BorderThickness
@@ -76,45 +77,51 @@ public class MainViewModel : INotifyPropertyChanged
 
     public ushort TeamColumnWidth
     {
-        get => _teamColumnWidth;
-        set
-        {
-            _teamColumnWidth = value;
-            OnPropertyChanged(nameof(TeamColumnWidth));
-        }
+        get => GetValue<ushort>();
+        set => SetValue(value);
+    }
+
+    public int PageSize
+    {
+        get => GetValue<int>();
+        set => SetValue(value);
     }
 
     public bool PaginationEnabled
     {
-        get => _paginationEnabled;
-        set
-        {
-            _paginationEnabled = value;
-            OnPropertyChanged(nameof(PaginationEnabled));
-        }
+        get => GetValue<bool>();
+        set => SetValue(value);
+    }
+
+    public SelectionMode SelectionMode
+    {
+        get => GetValue<SelectionMode>();
+        set => SetValue(value);
     }
 
     public Team SelectedTeam
     {
-        get => _selectedItem;
-        set
-        {
-            _selectedItem = value;
-            Debug.WriteLine("Team Selected : " + value?.Name);
-        }
+        get => GetValue<Team>();
+        set => SetValue(value);
     }
 
     public bool IsRefreshing
     {
-        get => _isRefreshing;
-        set
-        {
-            _isRefreshing = value;
-            OnPropertyChanged(nameof(IsRefreshing));
-        }
+        get => GetValue<bool>();
+        set => SetValue(value);
     }
 
-    public ICommand RefreshCommand { get; set; }
+    private void CmdCompleteEdit()
+    {
+        TeamToEdit = null;
+    }
+
+    private void CmdEdit(Team teamToEdit)
+    {
+        ArgumentNullException.ThrowIfNull(teamToEdit);
+
+        TeamToEdit = teamToEdit;
+    }
 
     private async void CmdRefresh()
     {
@@ -123,12 +130,4 @@ public class MainViewModel : INotifyPropertyChanged
         await Task.Delay(3000);
         IsRefreshing = false;
     }
-
-    #region INotifyPropertyChanged implementation
-
-    public event PropertyChangedEventHandler PropertyChanged;
-
-    private void OnPropertyChanged(string property) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
-
-    #endregion INotifyPropertyChanged implementation
 }

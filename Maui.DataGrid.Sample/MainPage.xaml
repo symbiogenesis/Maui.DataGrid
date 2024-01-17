@@ -6,45 +6,20 @@
              xmlns:vm="clr-namespace:Maui.DataGrid.Sample.ViewModels"
              xmlns:conv="clr-namespace:Maui.DataGrid.Sample.Converters"
              x:DataType="vm:MainViewModel"
+             x:Name="self"
              x:Class="Maui.DataGrid.Sample.MainPage">
     <Grid RowDefinitions="Auto,*" BackgroundColor="White">
 
-        <FlexLayout BackgroundColor="Black" Wrap="Wrap">
-            <HorizontalStackLayout HeightRequest="50" Margin="0,0,15,0">
-                <CheckBox IsChecked="{Binding HeaderBordersVisible}" />
-                <Label Text="Header Borders Visible?" TextColor="White" Margin="0,0,5,0" FontSize="Small" VerticalOptions="Center" />
-            </HorizontalStackLayout>
-            <HorizontalStackLayout HeightRequest="50" Margin="0,0,15,0">
-                <CheckBox IsChecked="{Binding TeamColumnVisible}"  />
-                <Label Text="Team Column" TextColor="White" Margin="0,0,5,0" FontSize="Small" VerticalOptions="Center" />
-            </HorizontalStackLayout>
-            <HorizontalStackLayout HeightRequest="50" Margin="0,0,15,0">
-                <CheckBox IsChecked="{Binding WonColumnVisible}" />
-                <Label Text="Won Column" TextColor="White" Margin="0,0,5,0" FontSize="Small" VerticalOptions="Center" />
-            </HorizontalStackLayout>
-            <HorizontalStackLayout HeightRequest="50" Margin="0,0,15,0">
-                <CheckBox IsChecked="{Binding PaginationEnabled}" />
-                <Label Text="Pagination Enabled?" TextColor="White" Margin="0,0,5,0" FontSize="Small" VerticalOptions="Center" />
-            </HorizontalStackLayout>
-            <HorizontalStackLayout HeightRequest="50" Margin="0,0,15,0">
-                <Stepper Minimum="0" Maximum="100" Increment="10" Value="{Binding TeamColumnWidth}" />
-                <Label Text="Team Col Width" TextColor="White" Margin="0,0,5,0" FontSize="Small" VerticalOptions="Center" />
-            </HorizontalStackLayout>
-            <HorizontalStackLayout HeightRequest="50" Margin="0,0,15,0">
-                <Stepper Minimum="0" Maximum="100" Increment="1" Value="{Binding BorderThickness}" />
-                <Label Text="Border Thickness" TextColor="White" Margin="0,0,5,0" FontSize="Small" VerticalOptions="Center" />
-            </HorizontalStackLayout>
-            <Button x:Name="_addColumnButton1" Text="Add Column" />
-        </FlexLayout>
+        <Grid BackgroundColor="Black">
+            <Button Text="Settings" WidthRequest="100" Clicked="OnSettingsClicked" />
+        </Grid>
 
-        <dg:DataGrid Grid.Row="1" ItemsSource="{Binding Teams}" SelectedItem="{Binding SelectedTeam}"
-                     BorderColor="{StaticResource GridBorderColor}" BackgroundColor="{StaticResource GridBgColor}"
-                     HeaderBordersVisible="{Binding HeaderBordersVisible}" BorderThickness="{Binding BorderThickness}"
-                     HeaderBackground="{StaticResource GridHeaderBgColor}" FooterBackground="{StaticResource GridFooterBgColor}"
-                     PullToRefreshCommand="{Binding RefreshCommand}" IsRefreshing="{Binding IsRefreshing}"
-                     PaginationEnabled="{Binding PaginationEnabled}" PageSize="5"
-                     ActiveRowColor="{StaticResource ActiveRowColor}"
-                     RowHeight="70" HeaderHeight="50" x:Name="_dataGrid1">
+        <dg:DataGrid Grid.Row="1" ItemsSource="{Binding Teams}" SelectionMode="{Binding SelectionMode}" SelectedItem="{Binding SelectedTeam}"
+                     RowHeight="70" HeaderHeight="50" BorderColor="{StaticResource GridBorderColor}" RowToEdit="{Binding TeamToEdit}"
+                     HeaderBackground="{StaticResource GridHeaderBgColor}" HeaderBordersVisible="{Binding HeaderBordersVisible}"
+                     PullToRefreshCommand="{Binding Commands[Refresh]}" IsRefreshing="{Binding IsRefreshing}"
+                     PaginationEnabled="{Binding PaginationEnabled}" PageSize="{Binding PageSize}"
+                     ActiveRowColor="{StaticResource ActiveRowColor}" FooterBackground="{StaticResource GridFooterBgColor}" x:Name="_dataGrid1">
             <dg:DataGrid.Columns>
                 <dg:DataGridColumn Title="Logo" PropertyName="Logo" SortingEnabled="False">
                     <dg:DataGridColumn.CellTemplate>
@@ -65,7 +40,7 @@
                         </FormattedString>
                     </dg:DataGridColumn.FormattedTitle>
                 </dg:DataGridColumn>
-                <dg:DataGridColumn Title="Win %" PropertyName="Percentage" Width="0.75*" StringFormat="{}{0:0.00}" />
+                <dg:DataGridColumn Title="Win %" PropertyName="Percentage" Width="0.75*" StringFormat="{}{0:P1}" />
                 <dg:DataGridColumn Title="Streak" PropertyName="Streak" Width="0.75*">
                     <dg:DataGridColumn.CellTemplate>
                         <DataTemplate>
@@ -76,6 +51,18 @@
                             </ContentView>
                         </DataTemplate>
                     </dg:DataGridColumn.CellTemplate>
+                </dg:DataGridColumn>
+                <dg:DataGridColumn PropertyName="." Width="0.75*">
+                    <dg:DataGridColumn.CellTemplate>
+                        <DataTemplate>
+                            <Button Text="Edit" BackgroundColor="LightSkyBlue" Command="{Binding BindingContext.Commands[Edit], Source={Reference self}}" CommandParameter="{Binding .}" />
+                        </DataTemplate>
+                    </dg:DataGridColumn.CellTemplate>
+                    <dg:DataGridColumn.EditCellTemplate>
+                        <DataTemplate>
+                            <Button Text="Done" BackgroundColor="MediumSeaGreen" Command="{Binding BindingContext.Commands[CompleteEdit], Source={Reference self}}" CommandParameter="{Binding .}" />
+                        </DataTemplate>
+                    </dg:DataGridColumn.EditCellTemplate>
                 </dg:DataGridColumn>
             </dg:DataGrid.Columns>
             <dg:DataGrid.RowsBackgroundColorPalette>

@@ -1,16 +1,28 @@
-﻿namespace Maui.DataGrid.Sample;
+namespace Maui.DataGrid.Sample;
+
+using CommunityToolkit.Maui;
 
 public static class MauiProgram
 {
     public static MauiApp CreateMauiApp()
     {
         var builder = MauiApp.CreateBuilder();
-        builder
+        _ = builder
             .UseMauiApp<App>()
+#if DEBUG
+            .UseMauiCommunityToolkit()
+#else
+            .UseMauiCommunityToolkit(options =>
+            {
+                options.SetShouldSuppressExceptionsInAnimations(true);
+                options.SetShouldSuppressExceptionsInBehaviors(true);
+                options.SetShouldSuppressExceptionsInConverters(true);
+            })
+#endif
             .ConfigureFonts(fonts =>
             {
-                fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
-                fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
+                _ = fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
+                _ = fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
             });
 
         return builder.Build();
