@@ -31,13 +31,6 @@
   </Suppression>
   <Suppression>
     <DiagnosticId>CP0002</DiagnosticId>
-    <Target>M:Maui.DataGrid.DataGrid.get_BorderThickness</Target>
-    <Left>lib/net7.0/Maui.DataGrid.dll</Left>
-    <Right>lib/net7.0/Maui.DataGrid.dll</Right>
-    <IsBaselineSuppression>true</IsBaselineSuppression>
-  </Suppression>
-  <Suppression>
-    <DiagnosticId>CP0002</DiagnosticId>
     <Target>M:Maui.DataGrid.DataGrid.get_PullToRefreshCommandParameter</Target>
     <Left>lib/net7.0/Maui.DataGrid.dll</Left>
     <Right>lib/net7.0/Maui.DataGrid.dll</Right>
@@ -130,13 +123,6 @@
   <Suppression>
     <DiagnosticId>CP0002</DiagnosticId>
     <Target>F:Maui.DataGrid.DataGrid.SelectionModeProperty</Target>
-    <Left>lib/net8.0/Maui.DataGrid.dll</Left>
-    <Right>lib/net8.0/Maui.DataGrid.dll</Right>
-    <IsBaselineSuppression>true</IsBaselineSuppression>
-  </Suppression>
-  <Suppression>
-    <DiagnosticId>CP0002</DiagnosticId>
-    <Target>M:Maui.DataGrid.DataGrid.get_BorderThickness</Target>
     <Left>lib/net8.0/Maui.DataGrid.dll</Left>
     <Right>lib/net8.0/Maui.DataGrid.dll</Right>
     <IsBaselineSuppression>true</IsBaselineSuppression>

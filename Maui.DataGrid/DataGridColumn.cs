@@ -199,7 +199,7 @@ public sealed class DataGridColumn : BindableObject, IDefinition
         set => _columnDefinition = value;
     }
 
-    internal Border? HeaderView { get; set; }
+    internal Grid? HeaderView { get; set; }
 
     internal TextAlignment VerticalTextAlignment => _verticalTextAlignment ??= VerticalContentAlignment.ToTextAlignment();
 

@@ -4,17 +4,8 @@ using System.Collections.ObjectModel;
 using Models;
 using Utils;
 
-public class MainViewModel : INotifyPropertyChanged
+public class MainViewModel : ViewModelBase
 {
-    private List<Team> _teams;
-    private Team _selectedItem;
-    private bool _isRefreshing;
-    private bool _teamColumnVisible = true;
-    private bool _wonColumnVisible = true;
-    private bool _headerBordersVisible = true;
-    private bool _paginationEnabled = true;
-    private ushort _teamColumnWidth = 70;
-
     public MainViewModel()
     {
         Teams = DummyDataProvider.GetTeams();
@@ -25,6 +16,7 @@ public class MainViewModel : INotifyPropertyChanged
         TeamColumnWidth = 70;
         SelectionMode = SelectionMode.Single;
         PageSize = 6;
+        BorderThickness = 2;
 
         Commands.Add("CompleteEdit", new Command(CmdCompleteEdit));
         Commands.Add("Edit", new Command<Team>(CmdEdit));
@@ -67,12 +59,8 @@ public class MainViewModel : INotifyPropertyChanged
 
     public double BorderThickness
     {
-        get => _borderThickness;
-        set
-        {
-            _borderThickness = value;
-            OnPropertyChanged(nameof(BorderThickness));
-        }
+        get => GetValue<double>();
+        set => SetValue(value);
     }
 
     public ushort TeamColumnWidth

@@ -143,7 +143,6 @@ internal sealed class DataGridRow : Grid
         {
             cell = new ContentView
             {
-                BackgroundColor = _bgColor,
                 Content = col.CellTemplate.CreateContent() as View
             };
 
@@ -158,7 +157,6 @@ internal sealed class DataGridRow : Grid
             cell = new Label
             {
                 TextColor = _textColor,
-                BackgroundColor = _bgColor,
                 VerticalTextAlignment = col.VerticalTextAlignment,
                 HorizontalTextAlignment = col.HorizontalTextAlignment,
                 LineBreakMode = col.LineBreakMode,
@@ -176,45 +174,7 @@ internal sealed class DataGridRow : Grid
         return WrapCellWithBorder(cell);
     }
 
-    private Grid WrapCellWithBorder(View cellContent)
-    {
-        var borderThickness = DataGrid.BorderThickness / 4;
-
-        var cellGrid = new Grid
-        {
-            // Define rows and columns for the border lines
-            RowDefinitions = { new RowDefinition { Height = new GridLength(borderThickness) }, new RowDefinition { Height = GridLength.Star }, new RowDefinition { Height = new GridLength(borderThickness) } },
-            ColumnDefinitions = { new ColumnDefinition { Width = new GridLength(borderThickness) }, new ColumnDefinition { Width = GridLength.Star }, new ColumnDefinition { Width = new GridLength(borderThickness) } }
-        };
-
-        // Add border lines
-        var leftBorder = new BoxView { Color = DataGrid.BorderColor };
-        Grid.SetColumn(leftBorder, 0);
-        Grid.SetRowSpan(leftBorder, 3);
-        cellGrid.Children.Add(leftBorder);
-
-        var rightBorder = new BoxView { Color = DataGrid.BorderColor };
-        Grid.SetColumn(rightBorder, 2);
-        Grid.SetRowSpan(rightBorder, 3);
-        cellGrid.Children.Add(rightBorder);
-
-        var topBorder = new BoxView { Color = DataGrid.BorderColor };
-        Grid.SetRow(topBorder, 0);
-        Grid.SetColumnSpan(topBorder, 3);
-        cellGrid.Children.Add(topBorder);
-
-        var bottomBorder = new BoxView { Color = DataGrid.BorderColor };
-        Grid.SetRow(bottomBorder, 2);
-        Grid.SetColumnSpan(bottomBorder, 3);
-        cellGrid.Children.Add(bottomBorder);
-
-        // Add content inside the borders
-        Grid.SetColumn(cellContent, 1);
-        Grid.SetRow(cellContent, 1);
-        cellGrid.Children.Add(cellContent);
-
-        return cellGrid;
-    }
+    private Grid WrapCellWithBorder(View cellContent) => cellContent.WrapCellWithBorder(DataGrid, _bgColor);
 
     private Grid CreateEditCell(DataGridColumn col)
     {
@@ -273,7 +233,6 @@ internal sealed class DataGridRow : Grid
         var entry = new Entry
         {
             TextColor = _textColor,
-            BackgroundColor = _bgColor,
             VerticalTextAlignment = col.VerticalTextAlignment,
             HorizontalTextAlignment = col.HorizontalTextAlignment,
             FontSize = DataGrid.FontSize,
@@ -286,7 +245,7 @@ internal sealed class DataGridRow : Grid
                 new Binding(col.PropertyName, BindingMode.TwoWay, stringFormat: col.StringFormat, source: BindingContext));
         }
 
-        return WrapViewInGrid(entry);
+        return WrapCellWithBorder(entry);
     }
 
     private Grid GenerateBooleanEditCell(DataGridColumn col)
@@ -303,7 +262,7 @@ internal sealed class DataGridRow : Grid
                 new Binding(col.PropertyName, BindingMode.TwoWay, source: BindingContext));
         }
 
-        return WrapViewInGrid(checkBox);
+        return WrapCellWithBorder(checkBox);
     }
 
     private Grid GenerateNumericEditCell(DataGridColumn col, ParserDelegate parserDelegate)
@@ -333,7 +292,7 @@ internal sealed class DataGridRow : Grid
                 new Binding(col.PropertyName, BindingMode.TwoWay, source: BindingContext));
         }
 
-        return WrapViewInGrid(entry);
+        return WrapCellWithBorder(entry);
     }
 
     private Grid GenerateDateTimeEditCell(DataGridColumn col)
@@ -349,19 +308,7 @@ internal sealed class DataGridRow : Grid
                 new Binding(col.PropertyName, BindingMode.TwoWay, source: BindingContext));
         }
 
-        return WrapViewInGrid(datePicker);
-    }
-
-    private Grid WrapViewInGrid(View view)
-    {
-        var grid = new Grid
-        {
-            BackgroundColor = _bgColor,
-        };
-
-        grid.Add(view);
-
-        return grid;
+        return WrapCellWithBorder(datePicker);
     }
 
     private void UpdateColors()
@@ -379,11 +326,11 @@ internal sealed class DataGridRow : Grid
                 : DataGrid.RowsBackgroundColorPalette.GetColor(rowIndex, BindingContext);
         _textColor = DataGrid.RowsTextColorPalette.GetColor(rowIndex, BindingContext);
 
-        foreach (var border in Children.OfType<Border>())
+        foreach (var grid in Children.OfType<Grid>())
         {
-            border.BackgroundColor = _bgColor;
+            grid.BackgroundColor = _bgColor;
 
-            if (border.Content is Label label)
+            foreach (var label in grid.Children.OfType<Label>())
             {
                 label.TextColor = _textColor;
             }
