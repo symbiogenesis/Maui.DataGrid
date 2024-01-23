@@ -199,8 +199,6 @@ public sealed class DataGridColumn : BindableObject, IDefinition
         set => _columnDefinition = value;
     }
 
-    internal DataGridCell? HeaderCell { get; set; }
-
     internal TextAlignment VerticalTextAlignment => _verticalTextAlignment ??= VerticalContentAlignment.ToTextAlignment();
 
     internal TextAlignment HorizontalTextAlignment => _horizontalTextAlignment ??= HorizontalContentAlignment.ToTextAlignment();

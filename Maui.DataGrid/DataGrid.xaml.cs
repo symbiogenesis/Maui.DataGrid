@@ -1438,9 +1438,6 @@ public partial class DataGrid
                 continue;
             }
 
-            col.HeaderCell ??= CreateHeaderCell(col);
-
-            col.HeaderCell.UpdateBindings(this, HeaderBordersVisible);
 
             if (_headerView.Children.TryGetItem(i, out var existingCell))
             {
@@ -1451,13 +1448,16 @@ public partial class DataGrid
 
                 if (cell.Column != col)
                 {
-                    Grid.SetColumn(col.HeaderCell, i);
+                    var headerCell = CreateHeaderCell(col);
+                    headerCell.UpdateBindings(this, HeaderBordersVisible);
+                    Grid.SetColumn(headerCell, i);
                 }
             }
             else
             {
-                Grid.SetColumn(col.HeaderCell, i);
-                _headerView.Children.Add(col.HeaderCell);
+                var headerCell = CreateHeaderCell(col);
+                Grid.SetColumn(headerCell, i);
+                _headerView.Children.Add(headerCell);
             }
 
         }
