@@ -13,7 +13,7 @@ public class MainViewModel : ViewModelBase
         TeamColumnVisible = true;
         WonColumnVisible = true;
         HeaderBordersVisible = true;
-        PaginationEnabled = true;
+        PaginationEnabled = false;
         TeamColumnWidth = 70;
         SelectionMode = SelectionMode.Single;
         PageSize = 6;

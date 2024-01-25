@@ -10,7 +10,7 @@ internal static class DummyDataProvider
 
     private static List<Team>? _realTeams;
 
-    public static List<Team> GetTeams(int numberOfCopies = 1)
+    public static List<Team> GetTeams(int numberOfCopies = 9999)
     {
         if (_realTeams == null)
         {
